@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=300px, initial-scale=1.0">
+        <link rel="stylesheet" href="//localhost:4201/ui/css/style.css">
+        <title>My Website</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dragula/3.7.2/dragula.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/dragula/3.7.2/dragula.min.js"></script>
+    </head>
+    <body>
+        <div class="container full-width">
+            <div class="row">
+                <div class="twelve columns">
+                    <nav class="navbar">
+                        <a href="/ui">Home</a>
+                        <a href="/ui/about">About</a>
+                        <a href="/ui/contact">Contact</a>
+                    </nav>
+                </div>
+            </div>
+            <div class="main-content">
+                <div class="row">
+                    <div>
+                        <form action="">
+                            <label for="feedbackType">Feedback</label>
+                            <textarea class="u-full-width" placeholder="Enter Message To Send" id="input"></textarea>
+                            <label for="feedbackType">Feedback Category</label>
+                                <select id="bucket" class="u-full-width" placeholder="Select a bucket" id="feedbackType">
+                                    <option value="none"></option>
+                                    <option value="right">What went right</option>
+                                    <option value="wrong">What went wrong</option>
+                                    <option value="improvement">What can be improved</option>
+                                </select>
+                            <button id="send">Send</button>
+                            <button id="update">Update</button>
+                        </form>
+                    </div>
+                    <div class="typing"></div>
+                    <div id="messages"></div>
+                </div>
+                <div class="row">
+                    <div class="one-third column extra">
+                        <div class="center-text">
+                            <h3>What went right?</h3>
+                        </div>
+                    </div>
+                    <div class="one-third column extra">
+                        <div class="center-text">
+                            <h3>What went wrong?</h3>
+                        </div>
+                    </div>
+                    <div class="one-third column extra">
+                        <div class="center-text">
+                            <h3>What needs improvement?</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div id="right" class="one-third column green full-height extra"></div>
+                    <div id="wrong" class="one-third column red full-height extra"></div>
+                    <div id="improvement" class="one-third column yellow full-height extra"></div>
+                </div>
+                <div class="overlay" id="overlay">
+                    <div class="progress-bar">
+                      <div class="progress" id="progress"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/uuid@8.3.2/dist/umd/uuidv4.min.js"></script>
+        <!-- Add this script to your HTML or include it in a separate JS file -->
+        <script>
+            var checkCookie = (cookieToFind) => {
+                var allCookies = document.cookie;
+                var prefix = cookieToFind + "=";
+
+                var cookies = allCookies.split(";");
+
+                cookies.forEach((cook) => {
+                    var cookie = cook.trim();
+                    // Check if the cookie starts with the cookie name we're looking for
+                    if (cookie.indexOf(prefix) == 0) {
+                        return true;
+                    }
+                })
+
+                return false;
+            }
+
+            window.onload = () => {
+                var userNameCook = uuidv4();
+                document.cookie = `username=${userNameCook}; max-age=86400; path=/; secure; SameSite=Strict`;
+                console.log('Cookie set: ' + document.cookie);
+                // Call fetchData when the page loads or when the user browses to a particular page
+                fetchData();
+            };
+        </script>
+        <script>
+            // Socket.io initialization
+            const socket = io();
+
+            var paths = window.location.pathname;
+            var segments = paths.split("/");
+
+            function showOverlay() {
+                document.getElementById("overlay").style.display = "flex";
+            }
+        
+            function hideOverlay() {
+                document.getElementById("overlay").style.display = "none";
+            }
+        
+            function fetchData() {
+                const xhr = new XMLHttpRequest();
+                const url = `http://localhost:4201/api/dashboard/${segments[segments.length - 1]}/fetch`; // Replace this with your server URL
+            
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            // Data fetched successfully, update frontend
+                            const data = JSON.parse(xhr.responseText);
+                            var navigation = performance.getEntriesByType("navigation")[0].type;
+
+                            socket.emit("message", data);
+                        } else if (xhr.status === 404) {
+                            window.location.href = `/ui/not-found.html`;
+                        } 
+                        else {
+                            // Handle error
+                            console.error("Error fetching data:", xhr.status, xhr.responseText);
+                        }
+                        // Hide the overlay after data is fetched
+                        hideOverlay();
+                    }
+                };
+            
+                xhr.onprogress = function (event) {
+                    // Update the progress bar based on the download progress
+                    if (event.lengthComputable) {
+                        const percent = (event.loaded / event.total) * 100;
+                        document.getElementById("progress").style.width = percent + "%";
+                    }
+                };
+        
+                // Show the overlay before starting the request
+                showOverlay();        
+                xhr.open("GET", url);
+                xhr.send();
+            }
+        </script>  
+        <script type="module">
+            // Dragula initialization
+            var drake = dragula([document.getElementById('right'), document.getElementById('wrong'), document.getElementById('improvement')]);
+
+            drake.on('drop', function(el, target, source, sibling) {
+                // When a drag and drop action is completed, emit a 'move' event to the server
+                socket.emit('move', {id: el.id, targetId: target.id, sourceId: source.id, siblingId: sibling ? sibling.id : null});
+            });
+
+            // Listen for 'move' events from the server and move elements accordingly
+            socket.on('move', function(data) {
+                console.log(data);
+                // Getting the element and its new location
+                var el = document.getElementById(data.id);
+                var target = document.getElementById(data.targetId);
+                var source = document.getElementById(data.sourceId);
+                var sibling = data.siblingId ? document.getElementById(data.siblingId) : null;
+
+                // Temporarily disable events to avoid triggering another 'move' event
+                drake.cancel(true);
+
+                // Moving the element in the DOM
+                target.insertBefore(el, sibling);
+
+                // Re-enable Dragula events
+                drake.remove();
+                // drake = dragula([document.getElementById('right'), document.getElementById('wrong'), document.getElementById('improvement')]);
+            });
+
+            import {ObjectId} from "https://unpkg.com/bson@5.0.0-alpha.1/lib/bson.mjs";
+
+            let typingTimeout;
+
+            // function debounce(func, delay) {
+            //     let debounceTimer;
+            //     return function() {
+            //         const context = this;
+            //         const args = arguments;
+            //         clearTimeout(debounceTimer);
+            //         debounceTimer = setTimeout(() => func.apply(context, args), delay);
+            //     }
+            // }
+
+            // const debouncedSaveData = debounce(saveData, 1000);
+
+            document.getElementById("send").onclick = (e) => {
+                e.preventDefault();
+
+                var paths = window.location.pathname;
+                var segments = paths.split("/");
+
+                var data = {};
+                data.message = document.getElementById('input').value;
+                data.bucket = document.getElementById('bucket').value;
+                data.dashboardId = segments[segments.length - 1];
+
+                if(data.bucket === "none") {
+                    alert("Please select a bucket to categories the feedback into!");
+                } else {
+                    data.createdTime = new Date().getTime();
+                    data._id = new ObjectId();
+                    socket.emit('message', data);
+                    saveData(data);
+                }
+            }
+
+            document.getElementById("update").addEventListener('click', (e) => {
+                e.preventDefault();
+                fetchData();
+                console.log(e);
+            });
+
+            document.querySelector("textarea").addEventListener('input', (e) => {
+                clearTimeout(typingTimeout);
+                
+                socket.emit('typing', e.data);
+
+                typingTimeout = setTimeout(() => {
+                    socket.emit('stop_typing')
+                }, 500);
+
+            })
+
+            socket.on('message', (data) => {
+                console.log(data);
+                if(Array.isArray(data)) {
+                    data.forEach(element => {
+                        renderPoints(element);
+                    });
+                } else {
+                    renderPoints(data);
+                }
+            })
+
+            const typingUsers = []
+
+            socket.on('typing', (t) => {
+                console.log("User is typing...." + t.username);
+                if(!typingUsers.includes(t.username)) {
+                    typingUsers.push(t.username);
+                }
+                if(!document.querySelector(".typer")) {
+                    var doc = document.createElement('div');
+                    doc.setAttribute("class", "typer");
+                    doc.textContent = `${JSON.stringify(typingUsers)} ${typingUsers.length > 1 ? "are" : "is"} typing....`
+                    document.querySelector(".typing").appendChild(doc);
+                }
+            })
+
+            socket.on('stop_typing', (t) => {
+                if(typingUsers.includes(t.username)) {
+                    typingUsers.pop(t.username);
+                }
+                console.log(`User ${t.username} has stopped typing....`);
+                var typer = document.querySelector(".typer");
+                if(typer) {
+                    document.querySelector(".typing").removeChild(typer);
+                }
+            });
+
+            const renderPoints = (d) => {
+                if(segments[segments.length - 1] == d.dashboardId) {
+
+                    var alreadyRendered = document.querySelector(`[id='${d._id}']`);
+                    if(alreadyRendered) {
+                        console.log("Element already painted, skipping...")
+                        return true;
+                    }
+
+                    var div = document.createElement('div');
+                    div.setAttribute("class", "content");
+                    div.setAttribute("id", d._id);
+                    var p = document.createElement('p');
+                    p.textContent = d.message;
+                    p.setAttribute("class", "content-item");
+                    var crossMark = document.createElement('span');
+                    crossMark.setAttribute("class", "cross-mark");
+                    crossMark.innerHTML = "&#10006;";
+                    crossMark.addEventListener('click', function(e) {
+                        e.target.parentNode.remove(); // Remove the parent of the crossMark when it is clicked
+                        if(e) {
+                            socket.emit("delete", d._id);
+                        }
+                    });
+                    div.appendChild(crossMark);
+                    div.appendChild(p);
+                    document.getElementById(`${d.bucket}`)
+                        .appendChild(div);
+                }
+            }
+
+            const saveData = (data) => {
+                socket.emit('save', data);
+                console.log(data);
+                document.getElementById('input').value = "";
+                document.getElementById('bucket').value = "";
+            }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=300px, initial-scale=1.0">
+        <link rel="stylesheet" href="//localhost:4201/ui/css/style.css">
+        <title>RetroSpec</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+        <style>
+            body, html {
+                height: 100%;
+                margin: 0;
+            }
+            .jumbotron {
+                height: 100%;
+                margin: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            section {
+                width: 100%;
+                text-align: center;
+            }
+
+            .container {
+                display: inline-block;
+            }
+
+            .centered-button {
+                display: inline-block;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="jumbotron">
+            <section>
+                <div class="container">
+                    <h1>Welcome to RetroSpec!</h1>
+                    <a class="button button-primary centered-button">Create Dashboard</a>
+                </div>
+            </section>
+        </div>
+        <script type="module">
+            import {ObjectId} from "https://unpkg.com/bson@5.0.0-alpha.1/lib/bson.mjs";
+
+            var createDashboard = document.querySelector(".centered-button").addEventListener('click', (e) => {
+                const dbID = new ObjectId();
+                const createReq = new XMLHttpRequest();
+                createReq.open("POST", `http://localhost:4201/api/create`);
+                createReq.setRequestHeader("Content-Type", "application/json");
+                createReq.onreadystatechange = function() {
+                if (createReq.readyState === XMLHttpRequest.DONE) {
+                        if (createReq.status === 200) {
+                            // The dashboard was successfully created on the server
+                            // The server should respond with the dashboard.html file
+                            // Reload the page to show the dashboard.html content
+                            window.location.href = `/ui/dashboard/${dbID}`;
+                        } else {
+                            // Handle any errors that occurred during the dashboard creation
+                            console.error("Error creating dashboard:", createReq.status, createReq.responseText);
+                        }
+                    }
+                };
+                createReq.send(JSON.stringify({ dashboardId: dbID.toString() }));
+            })
+        </script>
+    </body>
+</html>
